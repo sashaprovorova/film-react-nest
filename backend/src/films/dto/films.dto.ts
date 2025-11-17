@@ -1,1 +1,3 @@
-//TODO описать DTO для запросов к /films
+export class FilmIdParamDto {
+  id: string;
+}

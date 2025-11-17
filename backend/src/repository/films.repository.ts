@@ -31,19 +31,28 @@ export class FilmsRepository {
 
     return { total: doc?.schedule?.length ?? 0, items: doc?.schedule ?? [] };
   }
-  async findSession(filmId: string, sessionId: string) {
-    const doc = await this.filmModel
-      .findOne(
-        { id: filmId, 'schedule.id': sessionId },
-        { _id: 0, 'schedule.$': 1 },
-      )
-      .lean();
-    return doc?.schedule?.[0];
+  async findByIds(filmIds: string[]): Promise<FilmDoc[]> {
+    return this.filmModel
+      .find({ id: { $in: filmIds } }, { _id: 0 })
+      .lean()
+      .exec();
   }
-  async reserveSeats(filmId: string, sessionId: string, tokens: string[]) {
-    await this.filmModel.updateOne(
-      { id: filmId, 'schedule.id': sessionId },
-      { $addToSet: { 'schedule.$.taken': { $each: tokens } } },
-    );
+  async reserveSeatsBulk(
+    updates: { filmId: string; sessionId: string; tokens: string[] }[],
+  ): Promise<void> {
+    if (!updates.length) return;
+
+    const bulkOps = updates.map((update) => ({
+      updateOne: {
+        filter: { id: update.filmId, 'schedule.id': update.sessionId },
+        update: {
+          $addToSet: {
+            'schedule.$.taken': { $each: update.tokens },
+          },
+        },
+      },
+    }));
+
+    await this.filmModel.bulkWrite(bulkOps);
   }
 }

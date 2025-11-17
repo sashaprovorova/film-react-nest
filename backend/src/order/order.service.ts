@@ -4,8 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CreateOrderDto, OrderPlacedDto } from './dto/order.dto';
-import { FilmsRepository } from '../repository/films.repository';
+import { FilmDoc, FilmsRepository } from '../repository/films.repository';
 import * as crypto from 'crypto';
+
+type SessionSeat = { row: number; seat: number };
+
+type SessionGroup = {
+  filmId: string;
+  sessionId: string;
+  seats: SessionSeat[];
+};
 
 @Injectable()
 export class OrderService {
@@ -20,16 +28,8 @@ export class OrderService {
       );
     }
 
-    const group = new Map<
-      string,
-      {
-        film: string;
-        session: string;
-        tokens: string[];
-        rows: number;
-        seats: number;
-      }
-    >();
+    const groups = new Map<string, SessionGroup>();
+    const filmIdsSet = new Set<string>();
 
     for (const ticket of tickets) {
       if (
@@ -42,56 +42,92 @@ export class OrderService {
           'Для каждого билета должен быть выбран фильм, место и ряд',
         );
       }
+      filmIdsSet.add(ticket.film);
+
       const groupKey = `${ticket.film}::${ticket.session}`;
-      if (!group.has(groupKey)) {
-        const session = await this.filmsRepository.findSession(
-          ticket.film,
-          ticket.session,
-        );
-        if (!session) throw new NotFoundException('Фильм или сеанс не найден');
-
-        group.set(groupKey, {
-          film: ticket.film,
-          session: ticket.session,
-          tokens: [],
-          rows: session.rows ?? 0,
-          seats: session.seats ?? 0,
-        });
-      }
-      const sessionGroup = group.get(groupKey)!;
-
-      if (
-        ticket.row < 1 ||
-        ticket.seat < 1 ||
-        ticket.row > sessionGroup.rows ||
-        ticket.seat > sessionGroup.seats
-      ) {
-        throw new BadRequestException({
-          message: 'Выбрано некорректное место',
-          seat: { row: ticket.row, seat: ticket.seat },
-        });
+      let group = groups.get(groupKey);
+      if (!group) {
+        group = {
+          filmId: ticket.film,
+          sessionId: ticket.session,
+          seats: [],
+        };
+        groups.set(groupKey, group);
       }
 
-      sessionGroup.tokens.push(`${ticket.row}:${ticket.seat}`);
+      group.seats.push({ row: ticket.row, seat: ticket.seat });
     }
 
-    for (const { film, session, tokens } of group.values()) {
-      const sessionInfo = await this.filmsRepository.findSession(film, session);
-      if (!sessionInfo)
-        throw new NotFoundException('Фильм или сеанс не найден');
+    const filmIds = Array.from(filmIdsSet);
+    const films = await this.filmsRepository.findByIds(filmIds);
+    const filmMap = new Map<string, FilmDoc>(
+      films.map((film) => [film.id, film]),
+    );
 
-      const takenSet = new Set(sessionInfo.taken ?? []);
-      const alreadyTakenSeats = tokens.filter((seatToken) =>
-        takenSet.has(seatToken),
+    const seatUpdates: {
+      filmId: string;
+      sessionId: string;
+      tokens: string[];
+    }[] = [];
+
+    for (const group of groups.values()) {
+      const film = filmMap.get(group.filmId);
+      if (!film) {
+        throw new NotFoundException('Фильм или сеанс не найден');
+      }
+
+      const session = film.schedule?.find(
+        (scheduleItem) => scheduleItem.id === group.sessionId,
       );
+      if (!session) {
+        throw new NotFoundException('Фильм или сеанс не найден');
+      }
+      const maxRows = session.rows ?? 0;
+      const maxSeats = session.seats ?? 0;
+
+      const tokens: string[] = [];
+      const tokensInGroup = new Set<string>();
+
+      for (const { row, seat } of group.seats) {
+        if (row < 1 || seat < 1 || row > maxRows || seat > maxSeats) {
+          throw new BadRequestException({
+            message: 'Выбрано некорректное место',
+            seat: { row, seat },
+          });
+        }
+
+        const token = `${row}:${seat}`;
+
+        if (tokensInGroup.has(token)) {
+          throw new BadRequestException({
+            message: 'Некоторые места в заказе повторяются',
+            seats: [token],
+          });
+        }
+
+        tokensInGroup.add(token);
+        tokens.push(token);
+      }
+
+      const takenSet = new Set(session.taken ?? []);
+      const alreadyTakenSeats = tokens.filter((token) => takenSet.has(token));
+
       if (alreadyTakenSeats.length) {
         throw new BadRequestException({
           message: 'Некоторые места уже заняты',
           seats: alreadyTakenSeats,
         });
       }
-      await this.filmsRepository.reserveSeats(film, session, tokens);
+
+      seatUpdates.push({
+        filmId: group.filmId,
+        sessionId: group.sessionId,
+        tokens,
+      });
     }
+
+    await this.filmsRepository.reserveSeatsBulk(seatUpdates);
+
     const items: OrderPlacedDto[] = tickets.map((ticket) => ({
       ...ticket,
       id: crypto.randomUUID(),

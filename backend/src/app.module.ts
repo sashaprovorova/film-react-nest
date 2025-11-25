@@ -21,7 +21,7 @@ import { FilmsRepository } from './repository/films.repository';
 import { MongoFilmsRepository } from './repository/films.repository.mongo';
 import { PostgresFilmsRepository } from './repository/films.repository.postgres';
 
-const dbDriver = process.env.DATABASE_DRIVER;
+const dbDriver = process.env.DATABASE_DRIVER ?? 'mongodb';
 
 @Module({
   imports: [

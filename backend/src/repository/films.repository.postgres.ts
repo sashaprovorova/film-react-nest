@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 
-import { FilmsRepository, FilmDoc } from './films.repository';
+import { FilmsRepository, FilmDoc, SessionDoc } from './films.repository';
 import { Film } from '../films/entities/film.entity';
 import { Schedule } from '../films/entities/schedule.entity';
 
@@ -27,17 +27,22 @@ export class PostgresFilmsRepository extends FilmsRepository {
   }
 
   async findScheduleByFilmId(id: string) {
-    const schedule = await this.scheduleRepo.find({
+    const scheduleEntities = await this.scheduleRepo.find({
       where: { film: { id } },
-      order: {
-        daytime: 'ASC',
-        hall: 'ASC',
-      },
+      order: { daytime: 'ASC', hall: 'ASC' },
     });
-    return {
-      total: schedule.length,
-      items: schedule,
-    };
+
+    const items: SessionDoc[] = scheduleEntities.map((entity) => ({
+      id: entity.id,
+      daytime: entity.daytime,
+      hall: entity.hall,
+      rows: entity.rows,
+      seats: entity.seats,
+      price: entity.price,
+      taken: entity.taken,
+    }));
+
+    return { total: items.length, items };
   }
 
   async findByIds(filmIds: string[]): Promise<FilmDoc[]> {

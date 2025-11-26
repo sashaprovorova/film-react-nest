@@ -36,7 +36,9 @@ const dbDriver = process.env.DATABASE_DRIVER ?? 'mongodb';
           MongooseModule.forRootAsync({
             imports: [ConfigModule],
             useFactory: async (configService: ConfigService) => ({
-              uri: configService.get<string>('DATABASE_URL'),
+              uri:
+                configService.get<string>('DATABASE_URL') ??
+                'mongodb://localhost:27017/film',
             }),
             inject: [ConfigService],
           }),

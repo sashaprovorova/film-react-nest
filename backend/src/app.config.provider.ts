@@ -4,7 +4,7 @@ export const configProvider = {
   provide: CONFIG,
   useValue: {
     database: {
-      driver: process.env.DATABASE_DRIVER || 'mongodb',
+      driver: process.env.DATABASE_DRIVER || 'postgres',
       url: process.env.DATABASE_URL || 'mongodb://localhost:27017/film',
       username: process.env.DATABASE_USERNAME || 'filmuser',
       password: process.env.DATABASE_PASSWORD || 'film_nest',

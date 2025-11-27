@@ -1,18 +1,10 @@
-export type SessionDoc = {
-  id: string;
-  daytime?: Date;
-  hall?: number;
-  rows?: number;
-  seats?: number;
-  price?: number;
-  taken?: string[];
-};
+import {
+  FilmResponseDto,
+  SessionResponseDto,
+} from '../films/dto/film-response.dto';
 
-export type FilmDoc = {
-  id: string;
-  schedule?: SessionDoc[];
-  [key: string]: any;
-};
+export type SessionDoc = SessionResponseDto;
+export type FilmDoc = FilmResponseDto;
 
 export abstract class FilmsRepository {
   abstract findAll(): Promise<{ total: number; items: FilmDoc[] }>;

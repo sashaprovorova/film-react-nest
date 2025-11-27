@@ -2,9 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 
-import { FilmsRepository, FilmDoc, SessionDoc } from './films.repository';
+import { FilmsRepository, FilmDoc } from './films.repository';
 import { Film } from '../films/entities/film.entity';
 import { Schedule } from '../films/entities/schedule.entity';
+import { plainToInstance } from 'class-transformer';
+import {
+  FilmResponseDto,
+  SessionResponseDto,
+} from '../films/dto/film-response.dto';
 
 @Injectable()
 export class PostgresFilmsRepository extends FilmsRepository {
@@ -18,12 +23,16 @@ export class PostgresFilmsRepository extends FilmsRepository {
   }
 
   async findAll() {
-    const items = await this.filmRepo.find({
+    const entities = await this.filmRepo.find({
       relations: ['schedule'],
       order: { title: 'ASC' },
     });
 
-    return { total: items.length, items: items as unknown as FilmDoc[] };
+    const items = plainToInstance(FilmResponseDto, entities, {
+      excludeExtraneousValues: true,
+    });
+
+    return { total: items.length, items };
   }
 
   async findScheduleByFilmId(id: string) {
@@ -32,26 +41,23 @@ export class PostgresFilmsRepository extends FilmsRepository {
       order: { daytime: 'ASC', hall: 'ASC' },
     });
 
-    const items: SessionDoc[] = scheduleEntities.map((entity) => ({
-      id: entity.id,
-      daytime: entity.daytime,
-      hall: entity.hall,
-      rows: entity.rows,
-      seats: entity.seats,
-      price: entity.price,
-      taken: entity.taken,
-    }));
+    const items = plainToInstance(SessionResponseDto, scheduleEntities, {
+      excludeExtraneousValues: true,
+    });
 
     return { total: items.length, items };
   }
 
   async findByIds(filmIds: string[]): Promise<FilmDoc[]> {
     if (!filmIds.length) return [];
-    const items = await this.filmRepo.find({
+    const entities = await this.filmRepo.find({
       where: { id: In(filmIds) },
       relations: ['schedule'],
     });
-    return items as unknown as FilmDoc[];
+
+    return plainToInstance(FilmResponseDto, entities, {
+      excludeExtraneousValues: true,
+    });
   }
 
   async reserveSeatsBulk(

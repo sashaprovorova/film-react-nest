@@ -9,7 +9,7 @@ services:
   backend:
     image: ghcr.io/sashaprovorova/film-react-nest-backend:latest
     env_file:
-      - ./env.prod
+      - ./.env.prod
     environment:
       DATABASE_HOST: db
       # переход на Mongo
@@ -33,7 +33,7 @@ services:
   db:
     image: postgres:17-alpine
     env_file:
-      - ./env.prod
+      - ./.env.prod
     environment:
       POSTGRES_DB: filmdb
       POSTGRES_USER: filmuser

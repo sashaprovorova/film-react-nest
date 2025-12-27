@@ -48,7 +48,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     env_file:
-      - ./backend/.env
+      - ./.env.prod
     ports:
       - "8080:80"
     depends_on:

@@ -20,7 +20,6 @@ services:
     expose:
       - "3000"
     restart: unless-stopped
-
   nginx:
     image: ghcr.io/sashaprovorova/film-react-nest-nginx:latest
     ports:

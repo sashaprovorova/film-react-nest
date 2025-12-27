@@ -28,6 +28,8 @@ services:
     depends_on:
       - backend
       - frontend
+    volumes:
+      - frontend_dist:/usr/share/nginx/html:ro
     restart: unless-stopped
 
   db:

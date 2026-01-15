@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+  frontend:
+    image: ghcr.io/sashaprovorova/film-react-nest-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - frontend_dist:/dist
+    restart: "no"
+
+  backend:
+    image: ghcr.io/sashaprovorova/film-react-nest-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_HOST: db
+      # переход на Mongo
+      # DATABASE_HOST: mongo
+    depends_on:
+      - db
+      # - mongo
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  nginx:
+    image: ghcr.io/sashaprovorova/film-react-nest-nginx:latest
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - frontend_dist:/usr/share/nginx/html:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_DB: filmdb
+      POSTGRES_USER: filmuser
+      POSTGRES_PASSWORD: film_nest
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/test/prac.init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+      - ./backend/test/prac.films.sql:/docker-entrypoint-initdb.d/01_films.sql:ro
+      - ./backend/test/prac.schedules.sql:/docker-entrypoint-initdb.d/02_schedules.sql:ro
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+
+  # mongo:
+  #   image: mongo:7
+  #   container_name: mongo
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  #   restart: unless-stopped
+
+volumes:
+  frontend_dist:
+  db_data:
+  pgadmin_data:
+  # mongo_data:
